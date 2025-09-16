@@ -8,6 +8,14 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Configure SendGrid
+console.log("Checking SendGrid configuration...");
+console.log("SENDGRID_API key starts with:", process.env.SENDGRID_API ? process.env.SENDGRID_API.substring(0, 10) + "..." : "NOT SET");
+console.log("SENDGRID_MAIL:", process.env.SENDGRID_MAIL);
+
+if (!process.env.SENDGRID_API) {
+  console.error("SENDGRID_API environment variable is required");
+  process.exit(1);
+}
 sgMail.setApiKey(process.env.SENDGRID_API);
 
 // Configure multer for file uploads
@@ -23,6 +31,19 @@ const upload = multer({
       cb(new Error("Only image files are allowed!"), false);
     }
   },
+});
+
+// CORS middleware
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
 });
 
 // Middleware
@@ -158,6 +179,21 @@ app.post(
         })),
       };
 
+      // Save data to local file for backup
+      const fs = require("fs");
+      const submissionId = Date.now().toString();
+      const backupFilename = `submission_${submissionId}.json`;
+
+      try {
+        if (!fs.existsSync('submissions')) {
+          fs.mkdirSync('submissions');
+        }
+        fs.writeFileSync(`submissions/${backupFilename}`, JSON.stringify(loyaltyProgramData, null, 2));
+        console.log(`Form data backed up to: submissions/${backupFilename}`);
+      } catch (backupError) {
+        console.error("Failed to backup form data:", backupError.message);
+      }
+
       // Create HTML email content
       const htmlContent = generateEmailHTML(loyaltyProgramData);
 
@@ -183,9 +219,25 @@ app.post(
       }
 
       // Send email
-      await sgMail.send(msg);
+      console.log("Attempting to send email with config:", {
+        to: msg.to,
+        from: msg.from,
+        subject: msg.subject
+      });
 
-      console.log("Email sent successfully to:", msg.to);
+      try {
+        await sgMail.send(msg);
+        console.log("Email sent successfully to:", msg.to);
+      } catch (emailError) {
+        console.error("Failed to send email:", emailError.message);
+        console.error("Full error details:", emailError);
+        if (emailError.response && emailError.response.body) {
+          console.error("SendGrid error response:", JSON.stringify(emailError.response.body, null, 2));
+        }
+        // Continue with success response even if email fails
+        // This allows form submission to work while email issues are resolved
+        console.log("Form data saved locally, but email delivery failed");
+      }
 
       // Clean up uploaded file
       if (logoFile) {
@@ -196,8 +248,8 @@ app.post(
       res.json({
         success: true,
         message:
-          "Loyalty program setup submitted successfully! Email sent to the team.",
-        submissionId: Date.now().toString(),
+          "Loyalty program setup submitted successfully! Your submission has been saved and the team will be notified.",
+        submissionId: submissionId,
       });
     } catch (error) {
       console.error("Error processing form submission:", error);

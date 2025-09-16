@@ -1142,20 +1142,29 @@
               body: formData,
             });
 
-            const result = await response.json();
+            if (!response.ok) {
+              throw new Error(`Server error: ${response.status} ${response.statusText}`);
+            }
+
+            const responseText = await response.text();
+            if (!responseText) {
+              throw new Error("Server returned empty response");
+            }
+
+            let result;
+            try {
+              result = JSON.parse(responseText);
+            } catch (jsonError) {
+              console.error("Invalid JSON response:", responseText);
+              throw new Error("Server returned invalid response. Please try again.");
+            }
 
             if (result.success) {
-              alert(
-                "✅ " +
-                  result.message +
-                  "\n\nSubmission ID: " +
-                  result.submissionId
-              );
               console.log("✅ Form submitted successfully!");
               console.log("Submission ID:", result.submissionId);
 
-              // Optionally reset the form
-              // this.reset();
+              // Redirect to success page with submission ID
+              window.location.href = `/success.html?id=${result.submissionId}`;
             } else {
               throw new Error(result.message || "Unknown error occurred");
             }
