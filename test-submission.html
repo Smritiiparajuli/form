@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Form Submission</title>
+</head>
+<body>
+    <h1>Test Form Submission</h1>
+    <button onclick="testSubmission()">Test Form with Sample Data</button>
+    <pre id="output"></pre>
+
+    <script>
+        async function testSubmission() {
+            const output = document.getElementById('output');
+            output.textContent = 'Testing form submission...\n';
+
+            try {
+                const formData = new FormData();
+
+                // Add partner info
+                formData.append('partnerName', 'Test Business');
+                formData.append('cardKey', 'TEST-001');
+                formData.append('tagline', 'Test tagline');
+                formData.append('website', 'https://test.com');
+
+                // Add branding
+                formData.append('primaryColor', '#2c3e50');
+                formData.append('secondaryColor', '#34495e');
+                formData.append('accentColor', '#3498db');
+                formData.append('primaryFont', 'system');
+                formData.append('headerFont', 'inherit');
+
+                // Add tier data
+                formData.append('tierName[]', 'Bronze');
+                formData.append('tierName[]', 'Silver');
+                formData.append('tierBasePoints[]', '0');
+                formData.append('tierBasePoints[]', '1000');
+                formData.append('tierRoomNights[]', '0');
+                formData.append('tierRoomNights[]', '10');
+                formData.append('tierDiscount[]', '5');
+                formData.append('tierDiscount[]', '10');
+                formData.append('tierColorOne[]', '#CD7F32');
+                formData.append('tierColorOne[]', '#C0C0C0');
+                formData.append('tierColorTwo[]', '#A0522D');
+                formData.append('tierColorTwo[]', '#808080');
+                formData.append('tierImage[]', '');
+                formData.append('tierImage[]', '');
+                formData.append('tierDescription[]', 'Entry level tier');
+                formData.append('tierDescription[]', 'Premium tier');
+
+                // Add spending types
+                formData.append('spendingTypeName[]', 'Dining');
+                formData.append('spendingTypeName[]', 'Shopping');
+                formData.append('spendingTypeCurrency[]', 'THB');
+                formData.append('spendingTypeCurrency[]', 'THB');
+                formData.append('spendingTypeMultiplier[]', '1.0');
+                formData.append('spendingTypeMultiplier[]', '1.5');
+
+                // Add reward categories
+                formData.append('rewardCategoryName[]', 'Discounts');
+                formData.append('rewardCategoryName[]', 'Free Items');
+                formData.append('rewardCategoryDescription[]', 'Percentage discounts');
+                formData.append('rewardCategoryDescription[]', 'Complimentary items');
+
+                // Add rewards
+                formData.append('rewardName[]', '10% Off');
+                formData.append('rewardName[]', 'Free Coffee');
+                formData.append('rewardPoints[]', '100');
+                formData.append('rewardPoints[]', '50');
+                formData.append('rewardCategory[]', 'Discounts');
+                formData.append('rewardCategory[]', 'Free Items');
+
+                output.textContent += 'Form data prepared. Sending to server...\n';
+
+                const response = await fetch('/submit-loyalty-program', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                output.textContent += `Response status: ${response.status}\n`;
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Server error: ${response.status} - ${errorText}`);
+                }
+
+                const result = await response.json();
+                output.textContent += `Success: ${JSON.stringify(result, null, 2)}\n`;
+
+            } catch (error) {
+                output.textContent += `Error: ${error.message}\n`;
+                console.error('Test submission error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

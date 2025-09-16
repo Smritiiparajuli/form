@@ -1,0 +1,21 @@
+{
+  "submissionDate": "2025-09-16T07:50:23.879Z",
+  "partnerInfo": {
+    "businessName": "Dosink",
+    "cardKey": "Dos001",
+    "tagline": "",
+    "website": "https://dosink.com",
+    "logoFile": null
+  },
+  "branding": {
+    "primaryColor": "#2c3e50",
+    "secondaryColor": "#34495e",
+    "accentColor": "#3498db",
+    "primaryFont": "system",
+    "headerFont": "inherit"
+  },
+  "tiers": [],
+  "pointCredits": [],
+  "rewardCategories": [],
+  "rewards": []
+}

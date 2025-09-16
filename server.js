@@ -5,11 +5,15 @@ const path = require("path");
 require("dotenv").config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
 // Configure SendGrid
 console.log("Checking SendGrid configuration...");
-console.log("SENDGRID_API key starts with:", process.env.SENDGRID_API ? process.env.SENDGRID_API.substring(0, 10) + "..." : "NOT SET");
+console.log(
+  "SENDGRID_API key starts with:",
+  process.env.SENDGRID_API
+    ? process.env.SENDGRID_API.substring(0, 10) + "..."
+    : "NOT SET"
+);
 console.log("SENDGRID_MAIL:", process.env.SENDGRID_MAIL);
 
 if (!process.env.SENDGRID_API) {
@@ -24,7 +28,7 @@ const upload = multer({
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
-  fileFilter: (req, file, cb) => {
+  fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith("image/")) {
       cb(null, true);
     } else {
@@ -35,15 +39,24 @@ const upload = multer({
 
 // CORS middleware
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,OPTIONS");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, Content-Length, X-Requested-With"
+  );
 
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     res.sendStatus(200);
   } else {
     next();
   }
+});
+
+// Add request logging
+app.use((req, _res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  next();
 });
 
 // Middleware
@@ -52,82 +65,81 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static("."));
 
 // Serve the HTML file
-app.get("/", (req, res) => {
+app.get("/", (_req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
 // Handle form submission
 app.post(
   "/submit-loyalty-program",
-  upload.single("logoFile"),
+  upload.fields([{ name: "logoFile", maxCount: 1 }]),
   async (req, res) => {
     try {
       console.log("Received loyalty program submission...");
 
       // Extract form data
       const formData = req.body;
-      const logoFile = req.file;
+      const logoFile =
+        req.files && req.files.logoFile ? req.files.logoFile[0] : null;
 
-      // Parse array fields
-      const tierNames = Array.isArray(formData["tierName[]"])
-        ? formData["tierName[]"]
-        : [formData["tierName[]"]].filter(Boolean);
-      const tierBasePoints = Array.isArray(formData["tierBasePoints[]"])
-        ? formData["tierBasePoints[]"]
-        : [formData["tierBasePoints[]"]].filter(Boolean);
-      const tierRoomNights = Array.isArray(formData["tierRoomNights[]"])
-        ? formData["tierRoomNights[]"]
-        : [formData["tierRoomNights[]"]].filter(Boolean);
-      const tierDiscounts = Array.isArray(formData["tierDiscount[]"])
-        ? formData["tierDiscount[]"]
-        : [formData["tierDiscount[]"]].filter(Boolean);
-      const tierColorOnes = Array.isArray(formData["tierColorOne[]"])
-        ? formData["tierColorOne[]"]
-        : [formData["tierColorOne[]"]].filter(Boolean);
-      const tierColorTwos = Array.isArray(formData["tierColorTwo[]"])
-        ? formData["tierColorTwo[]"]
-        : [formData["tierColorTwo[]"]].filter(Boolean);
-      const tierImages = Array.isArray(formData["tierImage[]"])
-        ? formData["tierImage[]"]
-        : [formData["tierImage[]"]].filter(Boolean);
-      const tierDescriptions = Array.isArray(formData["tierDescription[]"])
-        ? formData["tierDescription[]"]
-        : [formData["tierDescription[]"]].filter(Boolean);
+      // Debug: Log received form data
+      console.log("=== FORM DATA RECEIVED ===");
+      console.log("Keys:", Object.keys(formData));
+      console.log("Sample tier data:", {
+        "tierName[]": formData["tierName[]"],
+        "spendingTypeName[]": formData["spendingTypeName[]"],
+        "rewardCategoryName[]": formData["rewardCategoryName[]"],
+        "rewardName[]": formData["rewardName[]"],
+      });
 
-      const spendingNames = Array.isArray(formData["spendingTypeName[]"])
-        ? formData["spendingTypeName[]"]
-        : [formData["spendingTypeName[]"]].filter(Boolean);
-      const spendingCurrencies = Array.isArray(
-        formData["spendingTypeCurrency[]"]
-      )
-        ? formData["spendingTypeCurrency[]"]
-        : [formData["spendingTypeCurrency[]"]].filter(Boolean);
-      const spendingMultipliers = Array.isArray(
-        formData["spendingTypeMultiplier[]"]
-      )
-        ? formData["spendingTypeMultiplier[]"]
-        : [formData["spendingTypeMultiplier[]"]].filter(Boolean);
+      // Helper function to safely parse array fields
+      function parseArrayField(fieldName) {
+        const value = formData[fieldName];
+        if (!value) return [];
+        if (Array.isArray(value)) {
+          return value.filter(
+            (item) => item !== undefined && item !== null && item !== ""
+          );
+        }
+        return value !== undefined && value !== null && value !== ""
+          ? [value]
+          : [];
+      }
 
-      const rewardCategoryNames = Array.isArray(
-        formData["rewardCategoryName[]"]
-      )
-        ? formData["rewardCategoryName[]"]
-        : [formData["rewardCategoryName[]"]].filter(Boolean);
-      const rewardCategoryDescriptions = Array.isArray(
-        formData["rewardCategoryDescription[]"]
-      )
-        ? formData["rewardCategoryDescription[]"]
-        : [formData["rewardCategoryDescription[]"]].filter(Boolean);
+      // Helper function to get field value - tries both with and without brackets
+      function getFieldValue(baseName) {
+        const withBrackets = parseArrayField(baseName + "[]");
+        const withoutBrackets = parseArrayField(baseName);
+        return withBrackets.length > 0 ? withBrackets : withoutBrackets;
+      }
 
-      const rewardNames = Array.isArray(formData["rewardName[]"])
-        ? formData["rewardName[]"]
-        : [formData["rewardName[]"]].filter(Boolean);
-      const rewardPoints = Array.isArray(formData["rewardPoints[]"])
-        ? formData["rewardPoints[]"]
-        : [formData["rewardPoints[]"]].filter(Boolean);
-      const rewardCategories = Array.isArray(formData["rewardCategory[]"])
-        ? formData["rewardCategory[]"]
-        : [formData["rewardCategory[]"]].filter(Boolean);
+      // Parse array fields - check both with and without brackets
+      const tierNames = getFieldValue("tierName");
+      const tierBasePoints = getFieldValue("tierBasePoints");
+      const tierRoomNights = getFieldValue("tierRoomNights");
+      const tierDiscounts = getFieldValue("tierDiscount");
+      const tierColorOnes = getFieldValue("tierColorOne");
+      const tierColorTwos = getFieldValue("tierColorTwo");
+      const tierImages = getFieldValue("tierImage");
+      const tierDescriptions = getFieldValue("tierDescription");
+
+      const spendingNames = getFieldValue("spendingTypeName");
+      const spendingCurrencies = getFieldValue("spendingTypeCurrency");
+      const spendingMultipliers = getFieldValue("spendingTypeMultiplier");
+
+      const rewardCategoryNames = getFieldValue("rewardCategoryName");
+      const rewardCategoryDescriptions = getFieldValue("rewardCategoryDescription");
+
+      const rewardNames = getFieldValue("rewardName");
+      const rewardPoints = getFieldValue("rewardPoints");
+      const rewardCategories = getFieldValue("rewardCategory");
+
+      // Debug: Log parsed arrays
+      console.log("=== PARSED ARRAYS ===");
+      console.log("Tier names:", tierNames);
+      console.log("Spending names:", spendingNames);
+      console.log("Reward category names:", rewardCategoryNames);
+      console.log("Reward names:", rewardNames);
 
       // Structure the data
       const loyaltyProgramData = {
@@ -158,15 +170,15 @@ app.post(
           basePoints: tierBasePoints[index] || "0",
           roomNights: tierRoomNights[index] || "0",
           discount: tierDiscounts[index] || "0",
-          primaryColor: tierColorOnes[index],
-          secondaryColor: tierColorTwos[index],
+          primaryColor: tierColorOnes[index] || "#2c3e50",
+          secondaryColor: tierColorTwos[index] || "#34495e",
           imageUrl: tierImages[index] || "",
           description: tierDescriptions[index] || "",
         })),
         pointCredits: spendingNames.map((name, index) => ({
           category: name,
-          currency: spendingCurrencies[index],
-          multiplier: spendingMultipliers[index],
+          currency: spendingCurrencies[index] || "THB",
+          multiplier: spendingMultipliers[index] || "1.0",
         })),
         rewardCategories: rewardCategoryNames.map((name, index) => ({
           name,
@@ -185,10 +197,13 @@ app.post(
       const backupFilename = `submission_${submissionId}.json`;
 
       try {
-        if (!fs.existsSync('submissions')) {
-          fs.mkdirSync('submissions');
+        if (!fs.existsSync("submissions")) {
+          fs.mkdirSync("submissions");
         }
-        fs.writeFileSync(`submissions/${backupFilename}`, JSON.stringify(loyaltyProgramData, null, 2));
+        fs.writeFileSync(
+          `submissions/${backupFilename}`,
+          JSON.stringify(loyaltyProgramData, null, 2)
+        );
         console.log(`Form data backed up to: submissions/${backupFilename}`);
       } catch (backupError) {
         console.error("Failed to backup form data:", backupError.message);
@@ -199,7 +214,7 @@ app.post(
 
       // Email configuration
       const msg = {
-        to: ["peshal@dosink.com", "smriti@dosink.com", "shilash@dosink.com"],
+        to: ["peshal@dosink.com", "smriti@dosink.com"],
         from: process.env.SENDGRID_MAIL || "ppeshalmani@gmail.com",
         subject: `New Loyalty Program Setup: ${loyaltyProgramData.partnerInfo.businessName}`,
         html: htmlContent,
@@ -222,7 +237,7 @@ app.post(
       console.log("Attempting to send email with config:", {
         to: msg.to,
         from: msg.from,
-        subject: msg.subject
+        subject: msg.subject,
       });
 
       try {
@@ -232,7 +247,10 @@ app.post(
         console.error("Failed to send email:", emailError.message);
         console.error("Full error details:", emailError);
         if (emailError.response && emailError.response.body) {
-          console.error("SendGrid error response:", JSON.stringify(emailError.response.body, null, 2));
+          console.error(
+            "SendGrid error response:",
+            JSON.stringify(emailError.response.body, null, 2)
+          );
         }
         // Continue with success response even if email fails
         // This allows form submission to work while email issues are resolved
@@ -255,10 +273,10 @@ app.post(
       console.error("Error processing form submission:", error);
 
       // Clean up uploaded file in case of error
-      if (req.file) {
+      if (req.files && req.files.logoFile && req.files.logoFile[0]) {
         const fs = require("fs");
         try {
-          fs.unlinkSync(req.file.path);
+          fs.unlinkSync(req.files.logoFile[0].path);
         } catch (cleanupError) {
           console.error("Error cleaning up file:", cleanupError);
         }
@@ -471,7 +489,7 @@ function generateEmailHTML(data) {
 }
 
 // Error handling middleware
-app.use((error, req, res, next) => {
+app.use((error, _req, res, _next) => {
   if (error instanceof multer.MulterError) {
     if (error.code === "LIMIT_FILE_SIZE") {
       return res.status(400).json({
@@ -487,7 +505,13 @@ app.use((error, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Access the form at: http://localhost:${PORT}`);
+// ✅ PORT declared only ONCE at the top
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, (err) => {
+  if (err) {
+    console.error("❌ Error starting server:", err);
+    process.exit(1);
+  }
+  console.log(`✅ Server running at http://localhost:${PORT}`);
 });

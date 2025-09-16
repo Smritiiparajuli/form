@@ -1134,6 +1134,10 @@
             const formData = new FormData(this);
 
             console.log("=== SUBMITTING LOYALTY PROGRAM FORM ===");
+            console.log("Form Data Entries:");
+            for (let [key, value] of formData.entries()) {
+              console.log(key + ":", value);
+            }
             console.log("Sending data to server...");
 
             // Submit form to server
@@ -1142,8 +1146,13 @@
               body: formData,
             });
 
+            console.log("Response status:", response.status);
+            console.log("Response headers:", Object.fromEntries(response.headers.entries()));
+
             if (!response.ok) {
-              throw new Error(`Server error: ${response.status} ${response.statusText}`);
+              const errorText = await response.text();
+              console.error("Server error response:", errorText);
+              throw new Error(`Server error: ${response.status} ${response.statusText}\nDetails: ${errorText}`);
             }
 
             const responseText = await response.text();
@@ -1170,10 +1179,17 @@
             }
           } catch (error) {
             console.error("❌ Error submitting form:", error);
+            console.error("Error stack:", error.stack);
+
+            let errorMessage = error.message;
+            if (error.name === 'TypeError' && error.message.includes('fetch')) {
+              errorMessage = "Network error: Unable to connect to server. Please check if the server is running and try again.";
+            }
+
             alert(
               "❌ Error submitting form: " +
-                error.message +
-                "\n\nPlease try again or contact support."
+                errorMessage +
+                "\n\nPlease check the browser console for more details or contact support."
             );
           } finally {
             submitButton.classList.remove("loading");
